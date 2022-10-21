@@ -1,0 +1,36 @@
+package root
+
+import (
+	"fmt"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+	"os"
+	"strings"
+)
+
+const envKeyPrefix = "CONTROLLER_"
+
+func bindEnvVars(cmd *cobra.Command, _ []string) (err error) {
+	var envKey string
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("environment binding failed for variable %s: %v", envKey, r)
+		}
+	}()
+
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		envKey = fmt.Sprintf("%s%s", envKeyPrefix, strings.ToUpper(strings.ReplaceAll(f.Name, "-", "_")))
+
+		if f.Changed {
+			return // flags take precedence over environment variables
+		}
+
+		if envValue, envSet := os.LookupEnv(envKey); envSet {
+			if err := f.Value.Set(envValue); err != nil {
+				panic(err)
+			}
+		}
+	})
+
+	return
+}
