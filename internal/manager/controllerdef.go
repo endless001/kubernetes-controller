@@ -67,30 +67,6 @@ func setupControllers(
 			},
 		},
 		{
-			Enabled: ingressConditions.IngressNetV1beta1Enabled(),
-			Controller: &configuration.NetV1Beta1IngressReconciler{
-				Client:                     mgr.GetClient(),
-				Log:                        ctrl.Log.WithName("controllers").WithName("Ingress").WithName("netv1beta1"),
-				Scheme:                     mgr.GetScheme(),
-				IngressClassName:           c.IngressClassName,
-				DisableIngressClassLookups: !c.IngressClassNetV1Enabled,
-				StatusQueue:                kubernetesStatusQueue,
-				CacheSyncTimeout:           c.CacheSyncTimeout,
-			},
-		},
-		{
-			Enabled: ingressConditions.IngressExtV1beta1Enabled(),
-			Controller: &configuration.ExtV1Beta1IngressReconciler{
-				Client:                     mgr.GetClient(),
-				Log:                        ctrl.Log.WithName("controllers").WithName("Ingress").WithName("extv1beta1"),
-				Scheme:                     mgr.GetScheme(),
-				IngressClassName:           c.IngressClassName,
-				DisableIngressClassLookups: !c.IngressClassNetV1Enabled,
-				StatusQueue:                kubernetesStatusQueue,
-				CacheSyncTimeout:           c.CacheSyncTimeout,
-			},
-		},
-		{
 			Enabled: c.ServiceEnabled,
 			Controller: &configuration.CoreV1ServiceReconciler{
 				Client:           mgr.GetClient(),

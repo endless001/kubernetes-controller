@@ -1,12 +1,9 @@
 package store
 
 import (
-	"encoding/json"
 	"fmt"
 	corev1 "k8s.io/api/core/v1"
-	extensions "k8s.io/api/extensions/v1beta1"
 	netv1 "k8s.io/api/networking/v1"
-	netv1beta1 "k8s.io/api/networking/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/cache"
 	"reflect"
@@ -35,7 +32,6 @@ type Storer interface {
 	GetService(namespace, name string) (*corev1.Service, error)
 	GetEndpointsForService(namespace, name string) (*corev1.Endpoints, error)
 	GetIngressClassV1(name string) (*netv1.IngressClass, error)
-	ListIngressesV1beta1() []*netv1beta1.Ingress
 	ListIngressesV1() []*netv1.Ingress
 	ListIngressClassesV1() []*netv1.IngressClass
 }
@@ -73,10 +69,6 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 	c.l.RLock()
 	defer c.l.RUnlock()
 	switch obj := obj.(type) {
-	case *extensions.Ingress:
-		return c.IngressV1beta1.Get(obj)
-	case *netv1beta1.Ingress:
-		return c.IngressV1beta1.Get(obj)
 	case *netv1.Ingress:
 		return c.IngressV1.Get(obj)
 	case *netv1.IngressClass:
@@ -97,10 +89,6 @@ func (c CacheStores) Add(obj runtime.Object) error {
 	defer c.l.Unlock()
 
 	switch obj := obj.(type) {
-	case *extensions.Ingress:
-		return c.IngressV1beta1.Add(obj)
-	case *netv1beta1.Ingress:
-		return c.IngressV1beta1.Add(obj)
 	case *netv1.Ingress:
 		return c.IngressV1.Add(obj)
 	case *netv1.IngressClass:
@@ -120,10 +108,6 @@ func (c CacheStores) Delete(obj runtime.Object) error {
 	c.l.Lock()
 	defer c.l.Unlock()
 	switch obj := obj.(type) {
-	case *extensions.Ingress:
-		return c.IngressV1beta1.Delete(obj)
-	case *netv1beta1.Ingress:
-		return c.IngressV1beta1.Delete(obj)
 	case *netv1.Ingress:
 		return c.IngressV1.Delete(obj)
 	case *netv1.IngressClass:
@@ -217,18 +201,6 @@ func (s Store) GetEndpointsForService(namespace, name string) (*corev1.Endpoints
 	return eps.(*corev1.Endpoints), nil
 }
 
-func (s Store) ListIngressesV1beta1() []*netv1beta1.Ingress {
-	var ingresses []*netv1beta1.Ingress
-	for _, item := range s.stores.IngressV1beta1.List() {
-		ing := s.networkingIngressV1Beta1(item)
-		ingresses = append(ingresses, ing)
-	}
-	sort.SliceStable(ingresses, func(i, j int) bool {
-		return strings.Compare(fmt.Sprintf("%s/%s", ingresses[i].Namespace, ingresses[i].Name),
-			fmt.Sprintf("%s/%s", ingresses[j].Namespace, ingresses[j].Name)) < 0
-	})
-	return ingresses
-}
 func (s Store) GetIngressClassV1(name string) (*netv1.IngressClass, error) {
 	p, exists, err := s.stores.IngressClassV1.GetByKey(name)
 	if err != nil {
@@ -240,35 +212,6 @@ func (s Store) GetIngressClassV1(name string) (*netv1.IngressClass, error) {
 	return p.(*netv1.IngressClass), nil
 }
 
-func (s Store) networkingIngressV1Beta1(obj interface{}) *netv1beta1.Ingress {
-	switch obj := obj.(type) {
-	case *netv1beta1.Ingress:
-		return obj
-
-	case *extensions.Ingress:
-		out, err := toNetworkingIngressV1Beta1(obj)
-		if err != nil {
-			return nil
-		}
-		return out
-
-	default:
-		return nil
-	}
-}
-
-func toNetworkingIngressV1Beta1(obj *extensions.Ingress) (*netv1beta1.Ingress, error) {
-	js, err := json.Marshal(obj)
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize object of type %v: %w", reflect.TypeOf(obj), err)
-	}
-	var out netv1beta1.Ingress
-	if err := json.Unmarshal(js, &out); err != nil {
-		return nil, fmt.Errorf("failed to deserialize json: %w", err)
-	}
-	out.APIVersion = netv1beta1.SchemeGroupVersion.String()
-	return &out, nil
-}
 func keyFunc(obj interface{}) (string, error) {
 	v := reflect.Indirect(reflect.ValueOf(obj))
 	name := v.FieldByName("Name")
