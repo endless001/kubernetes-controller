@@ -56,8 +56,8 @@ type CacheStores struct {
 	l *sync.RWMutex
 }
 
-func NewCacheStores() CacheStores {
-	return CacheStores{
+func NewCacheStores() *CacheStores {
+	return &CacheStores{
 		IngressV1beta1: cache.NewStore(keyFunc),
 		IngressV1:      cache.NewStore(keyFunc),
 		IngressClassV1: cache.NewStore(clusterResourceKeyFunc),

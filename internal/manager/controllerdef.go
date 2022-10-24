@@ -3,6 +3,7 @@ package manager
 import (
 	"fmt"
 	"kubernetes-controller/internal/controllers/configuration"
+	"kubernetes-controller/internal/store"
 	"kubernetes-controller/internal/util/kubernetes/object/status"
 	"reflect"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -32,6 +33,7 @@ func (c *ControllerDef) MaybeSetupWithManager(mgr ctrl.Manager) error {
 func setupControllers(
 	mgr manager.Manager,
 	kubernetesStatusQueue *status.Queue,
+	cache *store.CacheStores,
 	c *Config) ([]ControllerDef, error) {
 
 	restMapper := mgr.GetClient().RESTMapper()
@@ -45,6 +47,7 @@ func setupControllers(
 			Enabled: ingressConditions.IngressClassNetV1Enabled(),
 			Controller: &configuration.NetV1IngressClassReconciler{
 				Client:           mgr.GetClient(),
+				Cache:            cache,
 				Log:              ctrl.Log.WithName("controllers").WithName("IngressClass").WithName("netv1"),
 				Scheme:           mgr.GetScheme(),
 				CacheSyncTimeout: c.CacheSyncTimeout,
@@ -54,6 +57,7 @@ func setupControllers(
 			Enabled: ingressConditions.IngressNetV1Enabled(),
 			Controller: &configuration.NetV1IngressReconciler{
 				Client:                     mgr.GetClient(),
+				Cache:                      cache,
 				Log:                        ctrl.Log.WithName("controllers").WithName("Ingress").WithName("netv1"),
 				Scheme:                     mgr.GetScheme(),
 				IngressClassName:           c.IngressClassName,

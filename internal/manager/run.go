@@ -3,6 +3,7 @@ package manager
 import (
 	"context"
 	"fmt"
+	"kubernetes-controller/internal/store"
 	"kubernetes-controller/internal/util/kubernetes/object/status"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -31,7 +32,8 @@ func Run(ctx context.Context, c *Config) error {
 		return fmt.Errorf("unable to start xds server: %w", err)
 	}
 
-	controllers, err := setupControllers(mgr, kubernetesStatusQueue, c)
+	cache := store.NewCacheStores()
+	controllers, err := setupControllers(mgr, kubernetesStatusQueue, cache, c)
 	if err != nil {
 		return fmt.Errorf("unable to setup controller as expected %w", err)
 	}
