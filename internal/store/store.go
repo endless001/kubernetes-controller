@@ -68,6 +68,7 @@ func NewCacheStores() CacheStores {
 		l: &sync.RWMutex{},
 	}
 }
+
 func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err error) {
 	c.l.RLock()
 	defer c.l.RUnlock()
@@ -88,6 +89,30 @@ func (c CacheStores) Get(obj runtime.Object) (item interface{}, exists bool, err
 		return c.Endpoint.Get(obj)
 	default:
 		return nil, false, fmt.Errorf("%T is not a supported cache object type", obj)
+	}
+}
+
+func (c CacheStores) Add(obj runtime.Object) error {
+	c.l.Lock()
+	defer c.l.Unlock()
+
+	switch obj := obj.(type) {
+	case *extensions.Ingress:
+		return c.IngressV1beta1.Add(obj)
+	case *netv1beta1.Ingress:
+		return c.IngressV1beta1.Add(obj)
+	case *netv1.Ingress:
+		return c.IngressV1.Add(obj)
+	case *netv1.IngressClass:
+		return c.IngressClassV1.Add(obj)
+	case *corev1.Service:
+		return c.Service.Add(obj)
+	case *corev1.Secret:
+		return c.Secret.Add(obj)
+	case *corev1.Endpoints:
+		return c.Endpoint.Add(obj)
+	default:
+		return fmt.Errorf("cannot add unsupported kind %q to the store", obj.GetObjectKind().GroupVersionKind())
 	}
 }
 

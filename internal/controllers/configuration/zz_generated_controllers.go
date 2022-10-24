@@ -7,10 +7,13 @@ import (
 	extv1beta1 "k8s.io/api/extensions/v1beta1"
 	netv1 "k8s.io/api/networking/v1"
 	netv1beta1 "k8s.io/api/networking/v1beta1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	ctrlutils "kubernetes-controller/internal/controllers/utils"
+	"kubernetes-controller/internal/store"
+	"kubernetes-controller/internal/util"
 	"kubernetes-controller/internal/util/kubernetes/object/status"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,6 +27,7 @@ import (
 
 type CoreV1ServiceReconciler struct {
 	client.Client
+	cache            *store.CacheStores
 	Log              logr.Logger
 	Scheme           *runtime.Scheme
 	CacheSyncTimeout time.Duration
@@ -32,6 +36,7 @@ type CoreV1ServiceReconciler struct {
 func (r *CoreV1ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	c, err := controller.New("CoreV1Service", mgr, controller.Options{
 		Reconciler: r,
+
 		LogConstructor: func(_ *reconcile.Request) logr.Logger {
 			return r.Log
 		},
@@ -47,12 +52,42 @@ func (r *CoreV1ServiceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *CoreV1ServiceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	panic("")
+	log := r.Log.WithValues("CoreV1Service", req.NamespacedName)
+	obj := new(corev1.Service)
+	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
+		if errors.IsNotFound(err) {
+			obj.Namespace = req.Namespace
+			obj.Name = req.Name
+			return ctrl.Result{}, r.cache.Delete(obj)
+		}
+		return ctrl.Result{}, err
+	}
+	log.V(util.DebugLevel).Info("reconciling resource", "namespace", req.Namespace, "name", req.Name)
+
+	if !obj.DeletionTimestamp.IsZero() && time.Now().After(obj.DeletionTimestamp.Time) {
+		log.V(util.DebugLevel).Info("resource is being deleted, its configuration will be removed", "type", "Service", "namespace", req.Namespace, "name", req.Name)
+
+		_, objectExistsInCache, err := r.cache.Get(obj)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if objectExistsInCache {
+			if err := r.cache.Delete(obj); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{Requeue: true}, nil // wait until the object is no longer present in the cache
+		}
+		return ctrl.Result{}, nil
+	}
+	if err := r.cache.Add(obj.DeepCopyObject()); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
 }
 
 type CoreV1EndpointsReconciler struct {
 	client.Client
-
+	cache            *store.CacheStores
 	Log              logr.Logger
 	Scheme           *runtime.Scheme
 	CacheSyncTimeout time.Duration
@@ -76,12 +111,42 @@ func (r *CoreV1EndpointsReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *CoreV1EndpointsReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	panic("")
+
+	log := r.Log.WithValues("CoreV1Endpoints", req.NamespacedName)
+	// get the relevant object
+	obj := new(corev1.Endpoints)
+	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
+		if errors.IsNotFound(err) {
+			obj.Namespace = req.Namespace
+			obj.Name = req.Name
+			return ctrl.Result{}, r.cache.Delete(obj)
+		}
+		return ctrl.Result{}, err
+	}
+	log.V(util.DebugLevel).Info("reconciling resource", "namespace", req.Namespace, "name", req.Name)
+	if !obj.DeletionTimestamp.IsZero() && time.Now().After(obj.DeletionTimestamp.Time) {
+		log.V(util.DebugLevel).Info("resource is being deleted, its configuration will be removed", "type", "Endpoints", "namespace", req.Namespace, "name", req.Name)
+		_, objectExistsInCache, err := r.cache.Get(obj)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if objectExistsInCache {
+			if err := r.cache.Delete(obj); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{Requeue: true}, nil // wait until the object is no longer present in the cache
+		}
+		return ctrl.Result{}, nil
+	}
+	if err := r.cache.Add(obj.DeepCopyObject()); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
 }
 
 type CoreV1SecretReconciler struct {
 	client.Client
-
+	cache            *store.CacheStores
 	Log              logr.Logger
 	Scheme           *runtime.Scheme
 	CacheSyncTimeout time.Duration
@@ -104,16 +169,44 @@ func (r *CoreV1SecretReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	)
 }
 func (r *CoreV1SecretReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	panic("")
+	log := r.Log.WithValues("CoreV1Secret", req.NamespacedName)
+	obj := new(corev1.Secret)
+	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
+		if errors.IsNotFound(err) {
+			obj.Namespace = req.Namespace
+			obj.Name = req.Name
+			return ctrl.Result{}, r.cache.Delete(obj)
+		}
+		return ctrl.Result{}, err
+	}
+	log.V(util.DebugLevel).Info("reconciling resource", "namespace", req.Namespace, "name", req.Name)
+	if !obj.DeletionTimestamp.IsZero() && time.Now().After(obj.DeletionTimestamp.Time) {
+		log.V(util.DebugLevel).Info("resource is being deleted, its configuration will be removed", "type", "Secret", "namespace", req.Namespace, "name", req.Name)
+		_, objectExistsInCache, err := r.cache.Get(obj)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if objectExistsInCache {
+			if err := r.cache.Delete(obj); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{Requeue: true}, nil // wait until the object is no longer present in the cache
+		}
+		return ctrl.Result{}, nil
+	}
+	if err := r.cache.Add(obj.DeepCopyObject()); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
 }
 
 type NetV1IngressReconciler struct {
 	client.Client
 
-	Log              logr.Logger
-	Scheme           *runtime.Scheme
-	CacheSyncTimeout time.Duration
-
+	Log                        logr.Logger
+	Scheme                     *runtime.Scheme
+	CacheSyncTimeout           time.Duration
+	cache                      *store.CacheStores
 	StatusQueue                *status.Queue
 	IngressClassName           string
 	DisableIngressClassLookups bool
@@ -180,12 +273,63 @@ func (r *NetV1IngressReconciler) listClassless(obj client.Object) []reconcile.Re
 	return recs
 }
 func (r *NetV1IngressReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	panic("1")
+	log := r.Log.WithValues("NetV1Ingress", req.NamespacedName)
+
+	// get the relevant object
+	obj := new(netv1.Ingress)
+	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
+		if errors.IsNotFound(err) {
+			obj.Namespace = req.Namespace
+			obj.Name = req.Name
+			return ctrl.Result{}, r.cache.Delete(obj)
+		}
+		return ctrl.Result{}, err
+	}
+	log.V(util.DebugLevel).Info("reconciling resource", "namespace", req.Namespace, "name", req.Name)
+
+	if !obj.DeletionTimestamp.IsZero() && time.Now().After(obj.DeletionTimestamp.Time) {
+		log.V(util.DebugLevel).Info("resource is being deleted, its configuration will be removed", "type", "Ingress", "namespace", req.Namespace, "name", req.Name)
+		_, objectExistsInCache, err := r.cache.Get(obj)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if objectExistsInCache {
+			if err := r.cache.Delete(obj); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{Requeue: true}, nil // wait until the object is no longer present in the cache
+		}
+		return ctrl.Result{}, nil
+	}
+
+	class := new(netv1.IngressClass)
+	if !r.DisableIngressClassLookups {
+		if err := r.Get(ctx, types.NamespacedName{Name: r.IngressClassName}, class); err != nil {
+			// we log this without taking action to support legacy configurations that only set ingressClassName or
+			// used the class annotation and did not create a corresponding IngressClass. We only need this to determine
+			// if the IngressClass is default or to configure default settings, and can assume no/no additional defaults
+			// if none exists.
+			log.V(util.DebugLevel).Info("could not retrieve IngressClass", "ingressclass", r.IngressClassName)
+		}
+	}
+	// if the object is not configured with our ingress.class, then we need to ensure it's removed from the cache
+	if !ctrlutils.MatchesIngressClass(obj, r.IngressClassName, ctrlutils.IsDefaultIngressClass(class)) {
+		log.V(util.DebugLevel).Info("object missing ingress class, ensuring it's removed from configuration",
+			"namespace", req.Namespace, "name", req.Name, "class", r.IngressClassName)
+		return ctrl.Result{}, r.cache.Delete(obj)
+	} else {
+		log.V(util.DebugLevel).Info("object has matching ingress class", "namespace", req.Namespace, "name", req.Name,
+			"class", r.IngressClassName)
+	}
+	if err := r.cache.Add(obj.DeepCopyObject()); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
 }
 
 type NetV1IngressClassReconciler struct {
 	client.Client
-
+	cache            *store.CacheStores
 	Log              logr.Logger
 	Scheme           *runtime.Scheme
 	CacheSyncTimeout time.Duration
@@ -209,7 +353,39 @@ func (r *NetV1IngressClassReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *NetV1IngressClassReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	panic("")
+	log := r.Log.WithValues("NetV1IngressClass", req.NamespacedName)
+
+	// get the relevant object
+	obj := new(netv1.IngressClass)
+	if err := r.Get(ctx, req.NamespacedName, obj); err != nil {
+		if errors.IsNotFound(err) {
+			obj.Namespace = req.Namespace
+			obj.Name = req.Name
+			return ctrl.Result{}, r.cache.Delete(obj)
+		}
+		return ctrl.Result{}, err
+	}
+	log.V(util.DebugLevel).Info("reconciling resource", "namespace", req.Namespace, "name", req.Name)
+
+	// clean the object up if it's being deleted
+	if !obj.DeletionTimestamp.IsZero() && time.Now().After(obj.DeletionTimestamp.Time) {
+		log.V(util.DebugLevel).Info("resource is being deleted, its configuration will be removed", "type", "IngressClass", "namespace", req.Namespace, "name", req.Name)
+		_, objectExistsInCache, err := r.cache.Get(obj)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if objectExistsInCache {
+			if err := r.cache.Delete(obj); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{Requeue: true}, nil // wait until the object is no longer present in the cache
+		}
+		return ctrl.Result{}, nil
+	}
+	if err := r.cache.Add(obj.DeepCopyObject()); err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
 }
 
 type NetV1Beta1IngressReconciler struct {
