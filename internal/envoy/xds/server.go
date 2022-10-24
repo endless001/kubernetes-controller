@@ -8,20 +8,11 @@ import (
 	routeservice "github.com/envoyproxy/go-control-plane/envoy/service/route/v3"
 	runtimeservice "github.com/envoyproxy/go-control-plane/envoy/service/runtime/v3"
 	secretservice "github.com/envoyproxy/go-control-plane/envoy/service/secret/v3"
+	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"google.golang.org/grpc"
 )
 
-type Server interface {
-	clusterservice.ClusterDiscoveryServiceServer
-	endpointservice.EndpointDiscoveryServiceServer
-	listenerservice.ListenerDiscoveryServiceServer
-	routeservice.RouteDiscoveryServiceServer
-	discoverygrpc.AggregatedDiscoveryServiceServer
-	secretservice.SecretDiscoveryServiceServer
-	runtimeservice.RuntimeDiscoveryServiceServer
-}
-
-func RegisterServer(srv Server, g *grpc.Server) {
+func registerServer(g *grpc.Server, srv serverv3.Server) {
 	discoverygrpc.RegisterAggregatedDiscoveryServiceServer(g, srv)
 	secretservice.RegisterSecretDiscoveryServiceServer(g, srv)
 	clusterservice.RegisterClusterDiscoveryServiceServer(g, srv)
@@ -29,4 +20,10 @@ func RegisterServer(srv Server, g *grpc.Server) {
 	listenerservice.RegisterListenerDiscoveryServiceServer(g, srv)
 	routeservice.RegisterRouteDiscoveryServiceServer(g, srv)
 	runtimeservice.RegisterRuntimeDiscoveryServiceServer(g, srv)
+}
+
+func NewServer(server serverv3.Server, opts ...grpc.ServerOption) *grpc.Server {
+	g := grpc.NewServer(opts...)
+	registerServer(g, server)
+	return g
 }

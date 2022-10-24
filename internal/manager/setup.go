@@ -1,9 +1,14 @@
 package manager
 
 import (
+	"context"
+	"github.com/envoyproxy/go-control-plane/pkg/cache/v3"
+	serverv3 "github.com/envoyproxy/go-control-plane/pkg/server/v3"
 	"github.com/go-logr/logr"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 	"k8s.io/apimachinery/pkg/runtime"
+	"kubernetes-controller/internal/envoy/xds"
 	ctrl "sigs.k8s.io/controller-runtime"
 )
 
@@ -11,8 +16,7 @@ func setupLoggers(c *Config) (logrus.FieldLogger, logr.Logger, error) {
 	panic("")
 }
 
-func setupControllerOptions(logger logr.Logger, c *Config, scheme *runtime.Scheme,
-	dbMode string) (ctrl.Options, error) {
+func setupControllerOptions(logger logr.Logger, c *Config, scheme *runtime.Scheme) (ctrl.Options, error) {
 
 	var leaderElection bool
 
@@ -26,4 +30,11 @@ func setupControllerOptions(logger logr.Logger, c *Config, scheme *runtime.Schem
 		SyncPeriod:             &c.SyncPeriod,
 	}
 	return controllerOpts, nil
+}
+
+func setupXdsServer(ctx context.Context) (*grpc.Server, error) {
+	cache := cache.NewSnapshotCache(false, cache.IDHash{}, nil)
+	srv := serverv3.NewServer(ctx, cache, nil)
+	g := xds.NewServer(srv)
+	return g, nil
 }
