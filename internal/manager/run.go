@@ -26,6 +26,11 @@ func Run(ctx context.Context, c *Config) error {
 		setupLog.Info("status updates disabled, skipping status updater")
 	}
 
+	err = setupXdsServer(ctx)
+	if err != nil {
+		return fmt.Errorf("unable to start xds server: %w", err)
+	}
+
 	controllers, err := setupControllers(mgr, kubernetesStatusQueue, c)
 	if err != nil {
 		return fmt.Errorf("unable to setup controller as expected %w", err)
@@ -36,5 +41,6 @@ func Run(ctx context.Context, c *Config) error {
 		}
 	}
 	setupLog.Info("Starting manager")
+
 	return mgr.Start(ctx)
 }
